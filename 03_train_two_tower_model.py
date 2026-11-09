@@ -49,6 +49,7 @@ def make_lookup(vocab):
 # ----------------------------------------------------------------------
 # Model builders
 # ----------------------------------------------------------------------
+# TODO: Add dropout layers here to prevent overfitting
 def build_user_tower(numeric_dim):
     pref_body_in = keras.Input(shape=(1,), dtype=tf.string, name="pref_body_type")
     pref_fuel_in = keras.Input(shape=(1,), dtype=tf.string, name="pref_fuel_type")
