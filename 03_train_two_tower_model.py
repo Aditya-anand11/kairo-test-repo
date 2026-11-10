@@ -62,7 +62,7 @@ def build_user_tower(numeric_dim):
 
     x = layers.Concatenate()([pref_body_emb, pref_fuel_emb, pref_trans_emb, numeric_in])
     x = layers.Dense(64, activation="relu")(x)
-    x = layers.Dropout(0.2)(x)
+    x = layers.Dropout(0.8)(x)
     x = layers.Dense(32, activation="relu")(x)
     x = layers.Dense(EMBED_DIM)(x)
     x = L2NormalizeLayer(name="user_embedding")(x)
