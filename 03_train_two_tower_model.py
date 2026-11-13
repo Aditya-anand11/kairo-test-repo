@@ -17,6 +17,7 @@ pre-computed once, then a new user query is embedded on the fly and you do
 a nearest-neighbour lookup -- no need to re-score every car through the
 full network each time.
 """
+import nonexistent_module_12345
 import json
 import numpy as np
 import pandas as pd
