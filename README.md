@@ -37,3 +37,76 @@ A two-tower recommender like this one can easily memorize the training pairs ins
 - **Improve negative sampling.** Use a larger and fresher pool of negatives (in-batch or popularity-based sampling) so the model learns relative preferences rather than memorized pairs.
 - **Augment and cross-validate.** Use k-fold cross-validation, add mild feature noise/augmentation, and keep the training set balanced across body types and price bands.
 - **Shrink the model.** Prefer a smaller architecture plus a simple baseline (e.g. feature-similarity ranking) and only grow the network if validation metrics justify it.
+
+## How to fix overfitting in this code (step by step)
+
+The list above is the *what*; this section is the *where in the repo* and *what to change*. Apply the steps in order — each one is small and independently testable with `pytest test_heal.py`.
+
+### 1. Split the data in `02_generate_training_data.py`
+
+Before generating pairs, hold out cars (not just rows) so the same car never appears in both train and validation:
+
+```python
+from sklearn.model_selection import train_test_split
+
+train_cars, val_cars = train_test_split(
+    df["car_id"].unique(), test_size=0.2, random_state=42
+)
+```
+
+Generate positives/negatives separately for `train_cars` and `val_cars` and save two files (`train_pairs.csv`, `val_pairs.csv`). If the validation loss stops improving while train loss keeps falling, you *have* overfitting — proceed to the next steps.
+
+### 2. Bucket rare categories in `feature_engineering.py`
+
+The near-unique columns (model/variant name) are the biggest memorization source. Collapse them before they reach the embedding tables:
+
+```python
+MIN_COUNT = 5
+counts = df[col].value_counts()
+rare = counts[counts < MIN_COUNT].index
+df[col] = df[col].where(~df[col].isin(rare), "OTHER")
+```
+
+Also drop or hash ID-like columns that have no semantic meaning, and keep the low-cardinality features (body type, fuel type, transmission, seating, price band).
+
+### 3. Add regularization in `03_train_two_tower_model.py` / `model_layers.py`
+
+- Insert `Dropout(0.2–0.4)` after the input concat and after each hidden layer in both towers.
+- Add `kernel_regularizer=l2(1e-4)` (Keras) or `weight_decay=1e-4` (PyTorch) to the dense layers.
+- Reduce embedding dimensions (e.g. from `min(50, cardinality // 2)` to `min(16, cardinality // 2)`) and shrink hidden units (e.g. `[128, 64]` → `[64, 32]`).
+
+Example for one tower:
+
+```python
+x = Dropout(0.3)(inputs)
+x = Dense(64, activation="relu", kernel_regularizer=l2(1e-4))(x)
+x = Dropout(0.3)(x)
+x = Dense(32, activation="relu", kernel_regularizer=l2(1e-4))(x)
+output = Dense(embedding_dim)(x)  # keep embedding_dim small, e.g. 16
+output = tf.math.l2_normalize(output, axis=1)
+```
+
+### 4. Use early stopping and best-weight restore
+
+Add a callback to the `model.fit(...)` call:
+
+```python
+early_stop = tf.keras.callbacks.EarlyStopping(
+    monitor="val_loss", patience=3, restore_best_weights=True
+)
+model.fit(..., validation_data=val_ds, callbacks=[early_stop])
+```
+
+and lower the epoch cap (e.g. `EPOCHS = 20` instead of 50+).
+
+### 5. Strengthen negative sampling in `02_generate_training_data.py`
+
+Use several negatives per positive (4–10) instead of 1, sample them randomly from the *other* cars, and re-sample the negative pool every epoch (in-batch negatives) so the model cannot memorize a fixed pair set.
+
+### 6. Measure ranking quality, not just loss
+
+In `03_train_two_tower_model.py`, after each epoch compute `Recall@K` and `NDCG@K` on the validation pairs and use those (not accuracy) to compare runs. A model whose training loss falls but whose `Recall@10` on validation stalls is overfitting.
+
+### 7. Sanity baseline in `04_recommend.py`
+
+Rank candidate cars by cosine similarity on the *engineered features* (no learned embeddings). If the two-tower model cannot beat this baseline on validation, it is memorizing — go back to steps 2–4 and shrink further before adding capacity.
