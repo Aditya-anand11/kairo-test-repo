@@ -1,3 +1,5 @@
+import nonexistent_module_12345
+
 # Indian Cars Two-Tower Recommender
 
 <!-- layer-b byok smoke test -->
