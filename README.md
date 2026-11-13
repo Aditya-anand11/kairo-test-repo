@@ -110,3 +110,5 @@ In `03_train_two_tower_model.py`, after each epoch compute `Recall@K` and `NDCG@
 ### 7. Sanity baseline in `04_recommend.py`
 
 Rank candidate cars by cosine similarity on the *engineered features* (no learned embeddings). If the two-tower model cannot beat this baseline on validation, it is memorizing — go back to steps 2–4 and shrink further before adding capacity.
+
+Kairo V24 is live
