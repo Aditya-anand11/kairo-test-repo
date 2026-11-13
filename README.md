@@ -6,7 +6,7 @@ A Python machine-learning project that builds a car recommendation system over t
 
 ## Repository layout
 
-- `feature_engineering.py` / `01_feature_engineering.py` – prepare and transform car features from the raw CSV.
+- `feature_engineering.py` – prepare and transform car features from the raw CSV.
 - `02_generate_training_data.py` – generate positive/negative training pairs for the two-tower model.
 - `03_train_two_tower_model.py` – define and train the two-tower recommendation model.
 - `model_layers.py` – reusable neural network layers used by the model.
