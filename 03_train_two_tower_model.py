@@ -38,6 +38,20 @@ FUEL_VOCAB = ["Petrol", "Diesel", "CNG", "Hybrid", "Electric", "Unknown"]
 TRANS_VOCAB = ["Manual", "Automatic", "Unknown"]
 
 
+def fetch_github_data(url="https://api.github.com", timeout=10):
+    """Fetch JSON data from the GitHub API using the requests library.
+
+    The import is performed lazily inside the function so that the module can
+    still be imported in environments where `requests` is not installed.
+    """
+    import importlib
+
+    requests = importlib.import_module("requests")
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
 # FIX 1: Fixed missing closing parenthesis and renamed to `make_lookup`
 def make_lookup(vocab):
     return layers.StringLookup(vocabulary=vocab, num_oov_indices=1)
