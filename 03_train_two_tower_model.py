@@ -51,6 +51,46 @@ def make_lookup(vocab):
 # Model builders
 # ----------------------------------------------------------------------
 # TODO: Add dropout layers here to prevent overfitting
+def _project_token(x, name):
+    """Lift a single categorical embedding into one transformer token of size EMBED_DIM."""
+    x = layers.Dense(EMBED_DIM, name=f"{name}_proj")(x)
+    return layers.Reshape((1, EMBED_DIM), name=f"{name}_token")(x)
+
+
+def transformer_encoder_block(x, num_heads=4, ff_dim=64, dropout=0.1, name="transformer"):
+    """Pre-LN transformer encoder block: multi-head self-attention + feed-forward network."""
+    attn = layers.MultiHeadAttention(num_heads=num_heads, key_dim=EMBED_DIM, name=f"{name}_mha")(x, x)
+    attn = layers.Dropout(dropout, name=f"{name}_attn_dropout")(attn)
+    x = layers.Add(name=f"{name}_attn_add")([x, attn])
+    x = layers.LayerNormalization(epsilon=1e-6, name=f"{name}_attn_ln")(x)
+
+    ffn = layers.Dense(ff_dim, activation="relu", name=f"{name}_ffn1")(x)
+    ffn = layers.Dense(EMBED_DIM, name=f"{name}_ffn2")(ffn)
+    ffn = layers.Dropout(dropout, name=f"{name}_ffn_dropout")(ffn)
+    x = layers.Add(name=f"{name}_ffn_add")([x, ffn])
+    x = layers.LayerNormalization(epsilon=1e-6, name=f"{name}_ffn_ln")(x)
+    return x
+
+
+def _positional_embeddings(seq_len, name):
+    """Static (learned) positional embedding table for a fixed token sequence length."""
+    return layers.Embedding(
+        input_dim=seq_len,
+        output_dim=EMBED_DIM,
+        name=f"{name}_pos_emb",
+    )(tf.constant(np.arange(seq_len), dtype="int32"))
+
+
+def _encode_tokens(tokens, seq_len, dropout, name):
+    """Add positional embeddings, run transformer blocks, then pool to one vector."""
+    pos_emb = _positional_embeddings(seq_len, name)
+    x = layers.Add(name=f"{name}_pos_add")([tokens, pos_emb])
+    x = transformer_encoder_block(x, dropout=dropout, name=f"{name}_enc1")
+    x = transformer_encoder_block(x, dropout=dropout, name=f"{name}_enc2")
+    x = layers.GlobalAveragePooling1D(name=f"{name}_pool")(x)
+    return layers.Dense(EMBED_DIM, name=f"{name}_out")(x)
+
+
 def build_user_tower(numeric_dim):
     pref_body_in = keras.Input(shape=(1,), dtype=tf.string, name="pref_body_type")
     pref_fuel_in = keras.Input(shape=(1,), dtype=tf.string, name="pref_fuel_type")
@@ -61,11 +101,15 @@ def build_user_tower(numeric_dim):
     pref_fuel_emb = layers.Flatten()(layers.Embedding(len(PREF_FUEL_VOCAB) + 1, 6)(make_lookup(PREF_FUEL_VOCAB)(pref_fuel_in)))
     pref_trans_emb = layers.Flatten()(layers.Embedding(len(PREF_TRANS_VOCAB) + 1, 4)(make_lookup(PREF_TRANS_VOCAB)(pref_trans_in)))
 
-    x = layers.Concatenate()([pref_body_emb, pref_fuel_emb, pref_trans_emb, numeric_in])
-    x = layers.Dense(64, activation="relu")(x)
-    x = layers.Dropout(0.7)(x)
-    x = layers.Dense(32, activation="relu")(x)
-    x = layers.Dense(EMBED_DIM)(x)
+    body_tok = _project_token(pref_body_emb, "user_pref_body")
+    fuel_tok = _project_token(pref_fuel_emb, "user_pref_fuel")
+    trans_tok = _project_token(pref_trans_emb, "user_pref_trans")
+    numeric_tokens = layers.Dense(EMBED_DIM, name="user_numeric_proj")(
+        layers.Reshape((numeric_dim, 1), name="user_numeric_tokens")(numeric_in)
+    )
+
+    tokens = layers.Concatenate(axis=1, name="user_tokens")([body_tok, fuel_tok, trans_tok, numeric_tokens])
+    x = _encode_tokens(tokens, seq_len=3 + numeric_dim, dropout=0.7, name="user_tower")
     x = L2NormalizeLayer(name="user_embedding")(x)
 
     return keras.Model(inputs=[pref_body_in, pref_fuel_in, pref_trans_in, numeric_in], outputs=x, name="user_tower")
@@ -81,11 +125,15 @@ def build_car_tower(numeric_dim):
     fuel_emb = layers.Flatten()(layers.Embedding(len(FUEL_VOCAB) + 1, 6)(make_lookup(FUEL_VOCAB)(fuel_in)))
     trans_emb = layers.Flatten()(layers.Embedding(len(TRANS_VOCAB) + 1, 4)(make_lookup(TRANS_VOCAB)(trans_in)))
 
-    x = layers.Concatenate()([body_emb, fuel_emb, trans_emb, numeric_in])
-    x = layers.Dense(64, activation="relu")(x)
-    x = layers.Dropout(0.2)(x)
-    x = layers.Dense(32, activation="relu")(x)
-    x = layers.Dense(EMBED_DIM)(x)
+    body_tok = _project_token(body_emb, "car_body")
+    fuel_tok = _project_token(fuel_emb, "car_fuel")
+    trans_tok = _project_token(trans_emb, "car_trans")
+    numeric_tokens = layers.Dense(EMBED_DIM, name="car_numeric_proj")(
+        layers.Reshape((numeric_dim, 1), name="car_numeric_tokens")(numeric_in)
+    )
+
+    tokens = layers.Concatenate(axis=1, name="car_tokens")([body_tok, fuel_tok, trans_tok, numeric_tokens])
+    x = _encode_tokens(tokens, seq_len=3 + numeric_dim, dropout=0.2, name="car_tower")
     x = L2NormalizeLayer(name="car_embedding")(x)
 
     return keras.Model(inputs=[body_in, fuel_in, trans_in, numeric_in], outputs=x, name="car_tower")
