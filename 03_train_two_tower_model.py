@@ -15,7 +15,9 @@ This is the same family of architecture as YouTube-style two-tower
 retrieval recommenders: at serving time you only need the *car* embeddings
 pre-computed once, then a new user query is embedded on the fly and you do
 a nearest-neighbour lookup -- no need to re-score every car through the
-full network each'''
+full network each
+"""
+
 import json
 import numpy as np
 import pandas as pd
