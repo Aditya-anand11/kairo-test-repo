@@ -4,3 +4,4 @@ pandas
 tensorflow
 scikit-learn
 requests
+scipy
