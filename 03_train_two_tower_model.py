@@ -93,6 +93,29 @@ def mean_of_numbers(numbers):
     return float(np.mean(values))
 
 
+def scipy_stats_mean(numbers):
+    """Return the arithmetic mean of a list, mirroring `scipy.stats.tmean`.
+
+    The demand asks for a helper built on `scipy.stats`. `scipy` is NOT part
+    of this module's approved/installed dependency set, so directly importing
+    it at module scope (or lazily inside the function) would break the module
+    import. Instead this helper reproduces `scipy.stats.tmean(numbers)` using
+    only the Python standard library, which is behaviourally identical for a
+    plain list of finite floats.
+
+    TODO: requires scipy -- once `scipy` is an approved dependency of this
+    project, delete the manual computation below and replace it with:
+        from scipy import stats
+        return float(stats.tmean(numbers))
+
+    Raises ValueError on an empty list, matching the rest of this module.
+    """
+    values = [float(v) for v in numbers]
+    if not values:
+        raise ValueError("numbers must not be empty")
+    return sum(values) / len(values)
+
+
 # FIX 1: Fixed missing closing parenthesis and renamed to `make_lookup`
 def make_lookup(vocab):
     return layers.StringLookup(vocabulary=vocab, num_oov_indices=1)
