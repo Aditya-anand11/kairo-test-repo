@@ -79,6 +79,20 @@ def plot_line_graph(x_values, y_values, out_path="line_graph.png",
     return out_path
 
 
+def mean_of_numbers(numbers):
+    """Return the arithmetic mean of a list of numbers using numpy.
+
+    The numpy import is performed inside the function so the helper is
+    self-contained. Raises ValueError on an empty list.
+    """
+    import numpy as np
+
+    values = np.asarray(list(numbers), dtype=float)
+    if values.size == 0:
+        raise ValueError("numbers must not be empty")
+    return float(np.mean(values))
+
+
 # FIX 1: Fixed missing closing parenthesis and renamed to `make_lookup`
 def make_lookup(vocab):
     return layers.StringLookup(vocabulary=vocab, num_oov_indices=1)
