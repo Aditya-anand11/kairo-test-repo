@@ -97,11 +97,11 @@ def scipy_stats_mean(numbers):
     """Return the arithmetic mean of a list, mirroring `scipy.stats.tmean`.
 
     The demand asks for a helper built on `scipy.stats`. `scipy` is NOT part
-    of this module's approved/installed dependency set, so directly importing
-    it at module scope (or lazily inside the function) would break the module
-    import. Instead this helper reproduces `scipy.stats.tmean(numbers)` using
-    only the Python standard library, which is behaviourally identical for a
-    plain list of finite floats.
+    of this module's approved/installed dependency set, so importing it at
+    module scope (or lazily inside this function) would break the module
+    import and is therefore rejected by the dependency gate. Instead this
+    helper reproduces `scipy.stats.tmean(numbers)` -- the arithmetic mean of
+    a plain list of finite floats -- using only the Python standard library.
 
     TODO: requires scipy -- once `scipy` is an approved dependency of this
     project, delete the manual computation below and replace it with:
@@ -114,6 +114,16 @@ def scipy_stats_mean(numbers):
     if not values:
         raise ValueError("numbers must not be empty")
     return sum(values) / len(values)
+
+
+def mean_of_list(numbers):
+    """Mean of a list of numbers (scipy-free, stdlib-backed helper).
+
+    Thin public wrapper around `scipy_stats_mean`: it delegates to the same
+    standard-library implementation of `scipy.stats.tmean` so callers get a
+    single, obvious entry point for `mean(list_of_numbers)`.
+    """
+    return scipy_stats_mean(numbers)
 
 
 # FIX 1: Fixed missing closing parenthesis and renamed to `make_lookup`
