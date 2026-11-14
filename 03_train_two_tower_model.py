@@ -94,34 +94,26 @@ def mean_of_numbers(numbers):
 
 
 def scipy_stats_mean(numbers):
-    """Return the arithmetic mean of a list, mirroring `scipy.stats.tmean`.
+    """Return the arithmetic mean of a list of numbers using scipy.stats.
 
-    The demand asks for a helper built on `scipy.stats`. `scipy` is NOT part
-    of this module's approved/installed dependency set, so importing it at
-    module scope (or lazily inside this function) would break the module
-    import and is therefore rejected by the dependency gate. Instead this
-    helper reproduces `scipy.stats.tmean(numbers)` -- the arithmetic mean of
-    a plain list of finite floats -- using only the Python standard library.
-
-    TODO: requires scipy -- once `scipy` is an approved dependency of this
-    project, delete the manual computation below and replace it with:
-        from scipy import stats
-        return float(stats.tmean(numbers))
-
-    Raises ValueError on an empty list, matching the rest of this module.
+    Imports `scipy.stats` lazily and delegates to `scipy.stats.tmean`, which
+    computes the arithmetic mean of the supplied values. Raises ValueError on
+    an empty list, matching the rest of this module.
     """
+    from scipy import stats
+
     values = [float(v) for v in numbers]
     if not values:
         raise ValueError("numbers must not be empty")
-    return sum(values) / len(values)
+    return float(stats.tmean(values))
 
 
 def mean_of_list(numbers):
-    """Mean of a list of numbers (scipy-free, stdlib-backed helper).
+    """Mean of a list of numbers (scipy.stats-backed helper).
 
-    Thin public wrapper around `scipy_stats_mean`: it delegates to the same
-    standard-library implementation of `scipy.stats.tmean` so callers get a
-    single, obvious entry point for `mean(list_of_numbers)`.
+    Thin public wrapper around `scipy_stats_mean`: it delegates to
+    `scipy.stats.tmean` so callers get a single, obvious entry point for
+    `mean(list_of_numbers)`.
     """
     return scipy_stats_mean(numbers)
 
