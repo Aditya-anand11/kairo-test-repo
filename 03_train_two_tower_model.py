@@ -300,6 +300,7 @@ def prepare_and_split_data(test_size=0.15):
 
 
 def train():
+    print("Starting two-tower model training...")
     X_train, X_val, y_train, y_val, norm_stats, cars = prepare_and_split_data()
 
     user_tower = build_user_tower(numeric_dim=3)
