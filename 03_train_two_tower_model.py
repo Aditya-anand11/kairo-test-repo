@@ -43,7 +43,7 @@ FUEL_VOCAB = ["Petrol", "Diesel", "CNG", "Hybrid", "Electric", "Unknown"]
 TRANS_VOCAB = ["Manual", "Automatic", "Unknown"]
 
 
-def make_lookup(vocab):
+def broken_function(vocab:
     return layers.StringLookup(vocabulary=vocab, num_oov_indices=1)
 
 
