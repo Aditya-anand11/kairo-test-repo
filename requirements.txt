@@ -1,0 +1,6 @@
+matplotlib>=3.7
+numpy
+pandas
+tensorflow
+scikit-learn
+requests
