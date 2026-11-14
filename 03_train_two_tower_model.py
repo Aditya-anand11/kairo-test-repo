@@ -14,6 +14,8 @@ custom similarity layer (scaled dot product / cosine similarity) -> sigmoid
 """
 
 import json
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -52,21 +54,12 @@ def fetch_github_data(url="https://api.github.com", timeout=10):
     return response.json()
 
 
-# TODO: requires matplotlib
-# The requested change was to `import matplotlib.pyplot as plt` at the top of the
-# file and draw a simple line graph. `matplotlib` is not an available/resolved
-# dependency in this environment (and adding it at module scope would break the
-# import gate), so the same capability is provided below using ONLY the Python
-# standard library: the function renders a simple line graph straight to an SVG
-# file (plain text), which any browser or notebook can display. If matplotlib is
-# ever installed, this function can be swapped for a plt-based implementation.
-def plot_line_graph(x_values, y_values, out_path="line_graph.svg",
-                    title="Line Graph", width=640, height=400, padding=40):
-    """Draw a simple line graph and write it to `out_path` as an SVG file.
+def plot_line_graph(x_values, y_values, out_path="line_graph.png",
+                    title="Line Graph", xlabel="x", ylabel="y"):
+    """Draw a simple line graph with matplotlib and save it to `out_path`.
 
-    Pure standard-library implementation (no third-party plotting library is
-    required). Points are drawn as a polyline with circular markers, together
-    with the x/y axes. Returns the path of the file that was written.
+    `matplotlib.pyplot` is imported at the top of this module as `plt`.
+    Returns the path of the file that was written.
     """
     xs = [float(v) for v in x_values]
     ys = [float(v) for v in y_values]
@@ -75,40 +68,14 @@ def plot_line_graph(x_values, y_values, out_path="line_graph.svg",
     if not xs:
         raise ValueError("x_values and y_values must not be empty")
 
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    span_x = (max_x - min_x) or 1.0
-    span_y = (max_y - min_y) or 1.0
-
-    plot_w = width - 2 * padding
-    plot_h = height - 2 * padding
-
-    def _to_px(x, y):
-        px = padding + (x - min_x) / span_x * plot_w
-        py = height - padding - (y - min_y) / span_y * plot_h
-        return px, py
-
-    coords = [_to_px(x, y) for x, y in zip(xs, ys)]
-    points = " ".join(f"{px:.2f},{py:.2f}" for px, py in coords)
-
-    svg = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="0 0 {width} {height}">',
-        f'<rect width="{width}" height="{height}" fill="white"/>',
-        f'<line x1="{padding}" y1="{height - padding}" x2="{width - padding}" '
-        f'y2="{height - padding}" stroke="#999999"/>',
-        f'<line x1="{padding}" y1="{padding}" x2="{padding}" y2="{height - padding}" '
-        f'stroke="#999999"/>',
-        f'<text x="{width / 2:.1f}" y="{padding / 2:.1f}" text-anchor="middle" '
-        f'font-family="sans-serif" font-size="16">{title}</text>',
-        f'<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="{points}"/>',
-    ]
-    for px, py in coords:
-        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="3" fill="#1f77b4"/>')
-    svg.append("</svg>")
-
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(svg))
+    fig, ax = plt.subplots()
+    ax.plot(xs, ys, marker="o", color="#1f77b4")
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
     return out_path
 
 
