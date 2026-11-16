@@ -12,7 +12,7 @@ Saves: car_features.csv
 import re
 import pandas as pd
 import numpy as np
-from body_type_map import BODY_TYPE_MAP
+from BODY_TYPE_MAP import BODY_TYPE_MAP
 
 RAW_PATH = "/mnt/user-data/uploads/Indian_Cars_Data.csv"
 
