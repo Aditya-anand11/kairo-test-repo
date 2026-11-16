@@ -1,6 +1,13 @@
-import nonexistent_module_12345
-
 # Indian Cars Two-Tower Recommender
+
+## Two-Tower Model Overview
+
+The recommender uses a two-tower (dual-encoder) architecture:
+
+- **Query tower** – encodes the user/query context (e.g. preferred body type, fuel type, budget, seating) into a dense embedding.
+- **Car tower** – encodes each car's engineered features (categorical and numeric attributes) into an embedding in the same vector space.
+
+Both towers are small feed-forward networks that map their inputs to an L2-normalized embedding (e.g. 16–32 dimensions). Relevance is scored with the dot product (cosine similarity) between the query embedding and car embedding. The model is trained with a contrastive/softmax loss over positive query–car pairs and sampled negatives, so positives are pulled together and negatives pushed apart. At serving time the query tower embeds the request, and the car tower's precomputed embeddings are ranked by similarity to return the top-N cars.
 
 ![Kairo-TEST](https://img.shields.io/badge/Kairo--TEST-passing-brightgreen)
 
