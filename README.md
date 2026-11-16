@@ -17,7 +17,7 @@ A Python machine-learning project that builds a car recommendation system over t
 
 ## Repository layout
 
-- `feature_engineering.py` – prepare and transform car features from the raw CSV.
+- `01_feature_engineering.py` (identical logic to `feature_engineering.py`) – prepare and transform car features from the raw CSV.
 - `02_generate_training_data.py` – generate positive/negative training pairs for the two-tower model.
 - `03_train_two_tower_model.py` – define and train the two-tower recommendation model.
 - `model_layers.py` – reusable neural network layers used by the model.
@@ -25,6 +25,113 @@ A Python machine-learning project that builds a car recommendation system over t
 - `BODY_TYPE_MAP.py` – mapping utilities for car body types.
 - `Indian_Cars_Data.csv` – source dataset of Indian cars.
 - `test_heal.py` – tests for the project.
+
+## What each script does
+
+This section walks through the code file by file so you can see exactly what
+the project does end to end. The pipeline runs in order: raw CSV → clean
+features → synthetic training pairs → trained two-tower model → ranked
+recommendations.
+
+### 1. `01_feature_engineering.py` / `feature_engineering.py` — build the car feature table
+
+Reads the raw `Indian_Cars_Data.csv` and turns messy human-readable columns
+into clean numeric/categorical features. Concretely it:
+
+- `parse_price_to_lakh()` converts strings such as `"Rs. 7.51 Lakh"` or
+  `"Rs. 1.77 Crore"` into a single number of lakhs (crore is multiplied by
+  100), and takes the midpoint of price ranges like `"Rs. 80.00 - 90.00 Lakh"`.
+- `parse_mileage()` extracts the leading number from strings like
+  `"21.79 kmpl"` or `"28.51 km/kg"` (also handles EV `km/charge`).
+- `simplify_fuel()` collapses many fuel labels into `Petrol`, `Diesel`, `CNG`,
+  `Hybrid`, `Electric` or `Unknown`.
+- `simplify_transmission()` collapses gearbox labels into `Manual` or
+  `Automatic`.
+- It looks up each car model in `BODY_TYPE_MAP` to attach a `body_type`
+  (Hatchback/Sedan/SUV/MUV/…) and a typical `seating_capacity`.
+- It engineers `cost_per_km` = fuel cost per unit ÷ mileage, i.e. a synthetic
+  "how cheap is this car to run daily" signal.
+- It drops rows with no parseable price, fills missing mileage with the median,
+  adds a numeric `car_id`, and writes the tidy table to **`car_features.csv`**
+  (one row per car variant with brand, model, body type, seats, price, fuel,
+  mileage, transmission and running cost).
+
+### 2. `02_generate_training_data.py` — synthesize query↔car training pairs
+
+The raw CSV has no real user interaction history (nobody "clicked" or
+"bought" a car in the data), so the script invents a weak-supervision signal:
+
+- `sample_user_queries()` generates thousands of realistic shopper queries —
+  preferred body type, fuel type and transmission, plus budget (mostly
+  mass-market, long tail for luxury), family size and daily running distance.
+- `utility_score()` / `utility_score_vectorized()` are a transparent rule-based
+  "teacher": each car is scored against a query on weighted factors — budget
+  fit (0.30), seating/family fit (0.25), body-type match (0.15), and running
+  cost/efficiency (0.10), with a harsh penalty for exceeding budget. Body
+  types that are close substitutes (e.g. SUV↔MUV) get partial credit via
+  `BODY_TYPE_SIMILARITY`.
+- For every query the highest-scoring cars become **positives** (label 1) and
+  random low-scoring cars become **negatives** (label 0), which is standard
+  negative sampling.
+- The result is written to **`training_pairs.csv`**, one row per query–car pair.
+
+### 3. `model_layers.py` — custom Keras layers
+
+- `L2NormalizeLayer` normalizes a vector to unit length, so the dot product
+  between a user embedding and a car embedding equals cosine similarity.
+- `ScaledCosineSimilarity` computes that dot product with a learnable
+  temperature and squashes it through a sigmoid, producing a match probability
+  in `[0, 1]` that can be trained with binary cross-entropy.
+
+### 4. `03_train_two_tower_model.py` — build and train the two towers
+
+Defines the dual-encoder network and trains it on the pairs from step 2:
+
+- `PositionalEmbedding` and `transformer_encoder_block()` implement a small
+  Pre-LN Transformer (layer norm → multi-head self-attention → residual, then
+  layer norm → feed-forward → residual).
+- `build_user_tower()` embeds the query's categorical preferences, projects
+  the numeric fields (budget, family size, daily km) into tokens, concatenates
+  everything and runs it through the Transformer, finally L2-normalizing the
+  output into a 16-d user embedding.
+- `build_car_tower()` does the same for a car: categorical body/fuel/
+  transmission embeddings plus normalized numeric fields (price, seats,
+  mileage, cost per km) → Transformer → 16-d car embedding.
+- `build_two_tower_model()` wires both towers together and scores the pair with
+  `ScaledCosineSimilarity`.
+- `prepare_and_split_data()` joins the pairs with the car features, splits into
+  train/validation (stratified, before computing normalization stats to avoid
+  leakage), standardizes numeric columns, and records the means/stds.
+- `train()` compiles the model (Adam + binary cross-entropy), trains with early
+  stopping, prints validation AUC, and saves `two_tower_model.keras`,
+  `user_tower.keras`, `car_tower.keras` and `norm_stats.json`.
+
+(The file also contains small standalone helpers — `fetch_github_data()`,
+`plot_line_graph()` and mean-of-list utilities — used for testing/diagnostics.)
+
+### 5. `04_recommend.py` — serve top-N recommendations
+
+`CarRecommender` loads the saved towers and preprocessing stats, then:
+
+- `_precompute_car_embeddings()` runs every car through the car tower **once**
+  and caches the embeddings (the expensive offline step).
+- `recommend(...)` embeds a new user query with the small user tower, applies
+  optional hard filters (budget cap, required transmission/fuel/brand), ranks
+  all cars by cosine similarity to the query embedding, and returns the top-N
+  as a table.
+- The `__main__` block prints several example recommendations (family SUV,
+  budget hatchback, large family, automatic petrol SUV, hybrid SUV, brand
+  filter).
+
+### 6. `BODY_TYPE_MAP.py` — car model → (body type, seats)
+
+A hand-curated dictionary mapping Indian car model names to a body-type
+segment and typical seating capacity. It is the domain-knowledge source used
+by the feature-engineering step; unknown models get a sensible default.
+
+### 7. `test_heal.py`
+
+A tiny smoke test that imports `boto3` and asserts it is importable.
 
 ## Usage
 
