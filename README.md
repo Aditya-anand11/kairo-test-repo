@@ -2,6 +2,8 @@ import nonexistent_module_12345
 
 # Indian Cars Two-Tower Recommender
 
+![Kairo-TEST](https://img.shields.io/badge/Kairo--TEST-passing-brightgreen)
+
 <!-- layer-b byok smoke test -->
 
 A Python machine-learning project that builds a car recommendation system over the `Indian_Cars_Data.csv` dataset using a two-tower (dual-encoder) neural architecture. The pipeline engineers categorical and numeric car features, generates positive and negative query–car training pairs, trains the two-tower encoder network using reusable custom model layers, and serves top-N car recommendations from the trained model.
