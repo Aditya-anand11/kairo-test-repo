@@ -15,7 +15,7 @@ custom similarity layer (scaled dot product / cosine similarity) -> sigmoid
 
 import json
 
-import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -56,9 +56,9 @@ def fetch_github_data(url="https://api.github.com", timeout=10):
 
 def plot_line_graph(x_values, y_values, out_path="line_graph.png",
                     title="Line Graph", xlabel="x", ylabel="y"):
-    """Draw a simple line graph with matplotlib and save it to `out_path`.
+    """Draw a simple line graph with seaborn and save it to `out_path`.
 
-    `matplotlib.pyplot` is imported at the top of this module as `plt`.
+    `seaborn` is imported at the top of this module as `sns`.
     Returns the path of the file that was written.
     """
     xs = [float(v) for v in x_values]
@@ -68,14 +68,13 @@ def plot_line_graph(x_values, y_values, out_path="line_graph.png",
     if not xs:
         raise ValueError("x_values and y_values must not be empty")
 
-    fig, ax = plt.subplots()
-    ax.plot(xs, ys, marker="o", color="#1f77b4")
+    ax = sns.lineplot(x=xs, y=ys, marker="o", color="#1f77b4")
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    fig = ax.get_figure()
     fig.tight_layout()
     fig.savefig(out_path)
-    plt.close(fig)
     return out_path
 
 
