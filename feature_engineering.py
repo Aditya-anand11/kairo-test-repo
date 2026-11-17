@@ -9,12 +9,20 @@ table with the fields our recommender actually needs:
 
 Saves: car_features.csv
 """
+import os
 import re
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from BODY_TYPE_MAP import BODY_TYPE_MAP
 
-RAW_PATH = "/mnt/user-data/uploads/Indian_Cars_Data.csv"
+# Resolve the dataset relative to this module so the script runs from any cwd.
+# Override with CARS_RAW_PATH=/path/to/Indian_Cars_Data.csv when needed.
+RAW_PATH = os.environ.get(
+    "CARS_RAW_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "Indian_Cars_Data.csv"),
+)
 
 # ----------------------------------------------------------------------
 # Rough fuel cost per km in INR (India, 2026 ballpark) used only to build
