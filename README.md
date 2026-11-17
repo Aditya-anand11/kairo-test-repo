@@ -17,7 +17,7 @@ A Python machine-learning project that builds a car recommendation system over t
 
 ## Repository layout
 
-- `01_feature_engineering.py` (identical logic to `feature_engineering.py`) – prepare and transform car features from the raw CSV.
+- `01_feature_engineering.py` / `feature_engineering.py` – prepare and transform car features from the raw CSV. They implement the same pipeline; `feature_engineering.py` additionally resolves `Indian_Cars_Data.csv` relative to the module and accepts a `CARS_RAW_PATH` environment override.
 - `02_generate_training_data.py` – generate positive/negative training pairs for the two-tower model.
 - `03_train_two_tower_model.py` – define and train the two-tower recommendation model.
 - `model_layers.py` – reusable neural network layers used by the model.
@@ -131,7 +131,7 @@ by the feature-engineering step; unknown models get a sensible default.
 
 ### 7. `test_heal.py`
 
-A tiny smoke test that imports `boto3` and asserts it is importable.
+A tiny smoke test that verifies optional/missing dependencies do not break test collection: it imports `boto3` (optional) and a deliberately nonexistent module, tolerating `ImportError`, then asserts the imports are handled gracefully.
 
 ## Usage
 
@@ -228,5 +228,3 @@ In `03_train_two_tower_model.py`, after each epoch compute `Recall@K` and `NDCG@
 ### 7. Sanity baseline in `04_recommend.py`
 
 Rank candidate cars by cosine similarity on the *engineered features* (no learned embeddings). If the two-tower model cannot beat this baseline on validation, it is memorizing — go back to steps 2–4 and shrink further before adding capacity.
-
-Kairo V24 is live
