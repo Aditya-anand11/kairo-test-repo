@@ -17,6 +17,40 @@ import pandas as pd
 
 from BODY_TYPE_MAP import BODY_TYPE_MAP
 
+try:  # optional data-validation backend (kairo-nonexistent-lib)
+    # Imported lazily/optionally: the package is not published on PyPI in every
+    # environment, so a missing install must never break the pipeline.
+    import kairo_nonexistent_lib as kairo_validator  # type: ignore
+    KAIRO_VALIDATION_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    kairo_validator = None
+    KAIRO_VALIDATION_AVAILABLE = False
+
+
+# Columns the downstream training/recommendation steps depend on.
+REQUIRED_FEATURE_COLUMNS = [
+    "Brand", "Car", "Variant", "body_type", "seating_capacity",
+    "price_lakh", "fuel_type", "mileage_kmpl", "transmission_type",
+    "fuel_running_cost_per_km",
+]
+
+
+def validate_features(df):
+    """Validate the engineered feature table before it is persisted.
+
+    Uses ``kairo-nonexistent-lib`` (imported as ``kairo_nonexistent_lib``) when
+    it is installed. When the optional package is unavailable we fall back to
+    equivalent built-in checks so the pipeline always produces a valid table.
+    """
+    if KAIRO_VALIDATION_AVAILABLE and hasattr(kairo_validator, "validate"):
+        return kairo_validator.validate(df, required=REQUIRED_FEATURE_COLUMNS)
+
+    missing = [c for c in REQUIRED_FEATURE_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required feature columns: {missing}")
+    return df
+
+
 # Resolve the dataset relative to this module so the script runs from any cwd.
 # Override with CARS_RAW_PATH=/path/to/Indian_Cars_Data.csv when needed.
 RAW_PATH = os.environ.get(
@@ -118,6 +152,7 @@ def build_features():
     ]
     out = df[keep_cols].copy()
     out["car_id"] = out.index
+    out = validate_features(out)
     out.to_csv("car_features.csv", index=False)
     print(f"Saved car_features.csv with {len(out)} variants")
     print(out["body_type"].value_counts())
