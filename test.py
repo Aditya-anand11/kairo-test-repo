@@ -1,18 +1,25 @@
 """test.py
 
-Load a previously trained model and use it to turn user input into model output.
+Load the trained two-tower car recommender and use it to turn user input
+(``body_type``, ``fuel``, ``cost``) into ranked model output.
 
-Two model layouts are supported out of the box:
-
-* A Hugging Face directory (must contain ``config.json``) -> text-generation pipeline.
-* Anything joblib/pickle can load (e.g. a scikit-learn model, or a
-  ``(vectorizer, model)`` tuple saved together) -> ``predict``.
+The heavy lifting lives in ``04_recommend.CarRecommender``: it restores the
+trained ``user_tower`` / ``car_tower`` Keras models, embeds every car once and
+ranks candidates by cosine similarity against the user query. This module is
+the thin command-line front end around it.
 
 Usage::
 
-    python test.py                       # interactive prompt
-    python test.py --prompt "hello"      # one-shot
-    python test.py --model ./my_model    # explicit path
+    python test.py                                  # interactive prompt
+    python test.py --body-type SUV --fuel Diesel --cost 15
+    python test.py --model-dir ./artifacts --cost 8 --body-type Hatchback
+
+Expected model artifacts in ``--model-dir`` (produced by 01-03):
+
+* ``car_features.csv``
+* ``norm_stats.json``
+* ``user_tower.keras``
+* ``car_tower.keras``
 """
 
 from __future__ import annotations
@@ -20,131 +27,169 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Callable
 
-DEFAULT_MODEL_PATH = "model"
+DEFAULT_MODEL_DIR = "."
+DEFAULT_FAMILY_SIZE = 5
+DEFAULT_DAILY_RUNNING_KM = 30.0
+DEFAULT_TOP_N = 5
 EXIT_WORDS = {"exit", "quit", ":q"}
 
-Predictor = Callable[[str], str]
+# Vocabularies must stay in sync with 03_train_two_tower_model.py.
+BODY_TYPE_CHOICES = [
+    "Hatchback", "Sedan", "SUV", "MUV", "Pickup", "Coupe", "Convertible", "Any",
+]
+FUEL_CHOICES = ["Petrol", "Diesel", "CNG", "Hybrid", "Electric", "Any"]
 
 
-def load_predictor(model_path: Path) -> Predictor:
-    """Load the trained model at *model_path* and return a str -> str callable."""
-    if (model_path / "config.json").is_file():
-        return _load_transformers(model_path)
-    return _load_joblib(model_path)
+def normalize_body_type(value: str) -> str:
+    """Map a free-text body type onto the model vocabulary (default ``Any``)."""
+    text = str(value or "").strip().lower()
+    for choice in BODY_TYPE_CHOICES:
+        if choice.lower() == text:
+            return choice
+    return "Any"
 
 
-def _load_transformers(model_path: Path) -> Predictor:
+def normalize_fuel(value: str) -> str:
+    """Map a free-text fuel type onto the model vocabulary (default ``Any``)."""
+    text = str(value or "").strip().lower()
+    for choice in FUEL_CHOICES:
+        if choice.lower() == text:
+            return choice
+    return "Any"
+
+
+def parse_cost(value: str | float) -> float:
+    """Parse the user's budget in lakhs. Raises ``ValueError`` when invalid."""
     try:
-        from transformers import pipeline
+        cost = float(str(value).strip().replace(",", ""))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"cost must be a number in lakhs, got {value!r}") from exc
+    if cost <= 0:
+        raise ValueError(f"cost must be greater than zero, got {cost}")
+    return cost
+
+
+def load_recommender(model_dir: str | Path = DEFAULT_MODEL_DIR):
+    """Instantiate ``CarRecommender`` from the trained model artifacts."""
+    model_dir = Path(model_dir)
+    required = [
+        "car_features.csv",
+        "norm_stats.json",
+        "user_tower.keras",
+        "car_tower.keras",
+    ]
+    missing = [name for name in required if not (model_dir / name).is_file()]
+    if missing:
+        raise SystemExit(
+            f"No trained model found in {model_dir.resolve()} (missing: "
+            f"{', '.join(missing)}). Run 01_feature_engineering.py, "
+            "02_generate_training_data.py and 03_train_two_tower_model.py "
+            "first, or pass --model-dir."
+        )
+
+    try:
+        from importlib import import_module
+
+        recommend_module = import_module("04_recommend")
     except ImportError as exc:  # pragma: no cover - dependency guard
         raise SystemExit(
-            "This looks like a Hugging Face model but `transformers` is not "
-            "installed. Run: pip install transformers torch"
+            "Loading the trained model requires tensorflow. "
+            "Run: pip install -r requirements.txt"
         ) from exc
 
-    generator = pipeline(
-        "text-generation",
-        model=str(model_path),
-        tokenizer=str(model_path),
+    return recommend_module.CarRecommender(model_dir=str(model_dir))
+
+
+def recommend_for_user(
+    recommender,
+    body_type: str,
+    fuel: str,
+    cost: str | float,
+    family_size: int = DEFAULT_FAMILY_SIZE,
+    daily_running_km: float = DEFAULT_DAILY_RUNNING_KM,
+    top_n: int = DEFAULT_TOP_N,
+):
+    """Run the trained model for a single (body_type, fuel, cost) query."""
+    return recommender.recommend(
+        pref_body_type=normalize_body_type(body_type),
+        budget_lakh=parse_cost(cost),
+        family_size=int(family_size),
+        daily_running_km=float(daily_running_km),
+        pref_fuel_type=normalize_fuel(fuel),
+        top_n=int(top_n),
     )
 
-    def predict(text: str) -> str:
-        result = generator(text, max_new_tokens=128, do_sample=False)
-        generated = result[0]["generated_text"]
-        # Strip the prompt back off when the pipeline echoes it.
-        if isinstance(generated, str) and generated.startswith(text):
-            generated = generated[len(text):]
-        return generated.strip() or "<empty response>"
 
-    return predict
+def format_recommendations(result) -> str:
+    """Render the model output as a readable table."""
+    if result is None or len(result) == 0:
+        return "No matching cars found for that query."
+    return result.to_string(index=False)
 
 
-def _load_joblib(model_path: Path) -> Predictor:
-    try:
-        import joblib
-    except ImportError as exc:  # pragma: no cover - dependency guard
-        raise SystemExit(
-            "Loading a pickled model requires `joblib`. Run: pip install joblib"
-        ) from exc
-
-    loaded = joblib.load(model_path)
-
-    # Common pattern: the vectorizer and the estimator were saved together.
-    if isinstance(loaded, (tuple, list)) and len(loaded) == 2:
-        vectorizer, estimator = loaded
-
-        def predict_pipeline(text: str) -> str:
-            features = vectorizer.transform([text])
-            return str(estimator.predict(features)[0])
-
-        return predict_pipeline
-
-    def predict_plain(text: str) -> str:
-        return str(loaded.predict([text])[0])
-
-    return predict_plain
-
-
-def run_interactive(predict: Predictor) -> int:
-    print("Model loaded. Type your input, or 'exit' to quit.")
+def run_interactive(recommender) -> int:
+    print("Model loaded. Enter body type, fuel and cost (in lakh); 'exit' to quit.")
     while True:
         try:
-            user_input = input("you> ")
+            body_type = input("body type> ")
+            if body_type.strip().lower() in EXIT_WORDS:
+                break
+            fuel = input("fuel> ")
+            if fuel.strip().lower() in EXIT_WORDS:
+                break
+            cost = input("cost (lakh)> ")
+            if cost.strip().lower() in EXIT_WORDS:
+                break
         except (EOFError, KeyboardInterrupt):
             print()
             break
 
-        stripped = user_input.strip()
-        if stripped.lower() in EXIT_WORDS:
-            break
-        if not stripped:
+        try:
+            result = recommend_for_user(recommender, body_type, fuel, cost)
+        except ValueError as exc:
+            print(f"error> {exc}")
             continue
 
-        try:
-            print(f"model> {predict(user_input)}")
-        except Exception as exc:  # keep the session alive on bad input
-            print(f"error: {exc}", file=sys.stderr)
-
-    print("Bye.")
+        print(format_recommendations(result))
+        print()
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run a trained model against user input."
+        description="Run the trained car recommender on a body_type/fuel/cost query."
     )
-    parser.add_argument(
-        "--model",
-        default=DEFAULT_MODEL_PATH,
-        help=f"path to the trained model (default: {DEFAULT_MODEL_PATH})",
-    )
-    parser.add_argument(
-        "--prompt",
-        default=None,
-        help="single input to feed the model; omit to enter interactive mode",
-    )
+    parser.add_argument("--model-dir", default=DEFAULT_MODEL_DIR, help="directory holding the trained model artifacts")
+    parser.add_argument("--body-type", default=None, help="preferred body type, e.g. SUV (default: prompt)")
+    parser.add_argument("--fuel", default=None, help="preferred fuel type, e.g. Diesel (default: prompt)")
+    parser.add_argument("--cost", default=None, help="budget in lakh, e.g. 15 (default: prompt)")
+    parser.add_argument("--family-size", type=int, default=DEFAULT_FAMILY_SIZE)
+    parser.add_argument("--daily-running-km", type=float, default=DEFAULT_DAILY_RUNNING_KM)
+    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N)
     args = parser.parse_args(argv)
 
-    model_path = Path(args.model).expanduser()
-    if not model_path.exists():
-        raise SystemExit(
-            f"Model not found at '{model_path}'. Train or download it first, "
-            "or point to it with --model."
+    recommender = load_recommender(args.model_dir)
+
+    if args.body_type is None or args.fuel is None or args.cost is None:
+        return run_interactive(recommender)
+
+    try:
+        result = recommend_for_user(
+            recommender,
+            args.body_type,
+            args.fuel,
+            args.cost,
+            family_size=args.family_size,
+            daily_running_km=args.daily_running_km,
+            top_n=args.top_n,
         )
+    except ValueError as exc:
+        print(f"error> {exc}", file=sys.stderr)
+        return 2
 
-    predict = load_predictor(model_path)
-
-    if args.prompt is not None:
-        try:
-            print(predict(args.prompt))
-        except Exception as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
-        return 0
-
-    return run_interactive(predict)
+    print(format_recommendations(result))
+    return 0
 
 
 if __name__ == "__main__":
