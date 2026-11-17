@@ -6,3 +6,6 @@ scikit-learn
 requests
 scipy
 boto3
+# kairo-nonexistent-lib (optional data-validation backend; guarded import in
+# feature_engineering.py, not published on PyPI - install manually if available)
+# kairo-nonexistent-lib
