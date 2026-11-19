@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - optional dependency
 REQUIRED_FEATURE_COLUMNS = [
     "Brand", "Car", "Variant", "body_type", "seating_capacity",
     "price_lakh", "fuel_type", "mileage_kmpl", "transmission_type",
-    "fuel_running_cost_per_km",
+    "cost_per_km",
 ]
 
 
