@@ -24,6 +24,7 @@ FUEL_COST_PER_UNIT = {
     "Petrol": 105.0, "Diesel": 95.0, "CNG": 90.0,
     "Mild Hybrid(Electric + Petrol)": 105.0, "Mild Hybrid (Electric + Diesel)": 95.0,
     "Hybrid (Electric + Petrol)": 105.0, "Plug-in Hybrid (Electric + Petrol)": 105.0,
+    "Hybrid": 105.0,  # simplify_fuel() collapses all hybrid labels to this key
     "Electric": 8.0,  # INR per unit (kWh), mileage column for EV is usually km/kWh or range
 }
 
