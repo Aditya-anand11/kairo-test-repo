@@ -1,5 +1,33 @@
 # Indian Cars Two-Tower Recommender
 
+## Purpose
+
+This repository is an end-to-end machine-learning project that builds a **car
+recommendation system** for the Indian car market. Given a user's stated
+preferences (preferred body type, fuel type, transmission, budget, family size
+and daily running distance), it ranks the cars in `Indian_Cars_Data.csv` and
+returns the best-matching top-N variants.
+
+Because the raw dataset contains only car specifications and **no real user
+interaction/click history**, the project bootstraps training data
+differently: it synthesizes realistic user queries, scores every car against
+each query with a transparent rule-based utility function (`02_generate_training_data.py`),
+and then trains a **two-tower (dual-encoder) neural network** to approximate
+that utility function purely from learned embeddings. The towers are small
+feed-forward networks that map query features and car features into the same
+L2-normalized embedding space, and relevance is scored by cosine similarity.
+
+In short, the repo demonstrates the full retrieval-modeling workflow:
+
+1. Clean raw, human-readable car data into numeric/categorical features
+   (`01_feature_engineering.py` / `feature_engineering.py`).
+2. Generate positive/negative query–car training pairs
+   (`02_generate_training_data.py`).
+3. Define and train the two-tower encoder with reusable custom Keras layers
+   (`03_train_two_tower_model.py`, `model_layers.py`).
+4. Serve top-N ranked car recommendations from the trained model
+   (`04_recommend.py`).
+
 ## Two-Tower Model Overview
 
 The recommender uses a two-tower (dual-encoder) architecture:
